@@ -76,7 +76,7 @@ def main():
         kernelsToRemove = kernels[:currentVersionIndex]
         assert kernelsToRemove
         print("## Going to remove kernels: %s; please provide root password to proceed:\n" % ', '.join(kernelsToRemove))
-        runProcess(('sudo', 'apt-get', 'purge', ' '.join(('linux-*-%s*' % kernelVersion) for kernelVersion in kernelsToRemove)), lineFilter = purgeFilter)
+        runProcess(('sudo', 'apt-get', 'purge') + (('linux-*-%s*' % kernelVersion) for kernelVersion in kernelsToRemove), lineFilter = purgeFilter)
         print("\n## Making sure the boot loader is up to date\n")
         runProcess(('sudo', 'update-grub2'))
         if currentVersionIndex == len(kernels) - 1:
