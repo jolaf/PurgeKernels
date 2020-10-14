@@ -8,7 +8,7 @@ VERSION_SPLIT_PATTERN = reCompile(r'[.-]')
 
 VERSION_PATTERN_STR = r'(?P<version>\d+\.\d+\.\d+-\d+)(?:-(?P<variation>[a-z]+))?'
 
-KERNEL_PATTERN = reCompile(r'(?P<line>[a-z][a-z]\s+linux-[a-z]+-(?:[a-z]+-)?%s\s+.*)' % VERSION_PATTERN_STR)
+KERNEL_PATTERN = reCompile(rf'(?P<line>[a-z][a-z]\s+linux-[a-z]+-(?:[a-z]+-)?{VERSION_PATTERN_STR}\s+.*)')
 
 UNAME_R_PATTERN = reCompile(VERSION_PATTERN_STR)
 
@@ -38,13 +38,13 @@ def runProcess(args: Sequence[str], lineFilter: Optional[Callable[[str], Optiona
             print(line, end = '', flush = True)
         ret = ''.join(output + ['',])
         (out, err) = subProcess.communicate()
-        assert not out, "Unexpected output: %r" % out.decode()
+        assert not out, f"Unexpected output: {out.decode()!r}"
     else:
         (out, err) = subProcess.communicate()
         ret = out.decode()
-    assert not err, "Unexpected error output: %r" % err.decode()
+    assert not err, f"Unexpected error output: {err.decode()!r}"
     if subProcess.returncode:
-        raise Exception("Unexpected return code %s" % subProcess.returncode)
+        raise Exception(f"Unexpected return code {subProcess.returncode}")
     return ret
 
 def main() -> None:
@@ -57,14 +57,14 @@ def main() -> None:
         kernels = tuple(sorted(set(kernelList), key = versionTuple))
         if not kernels:
             raise Exception("No installed kernels found!")
-        print("\n## Installed kernels: %s\n" % ', '.join(kernels))
+        print(f"\n## Installed kernels: {', '.join(kernels)}\n")
         uname_r = runProcess(('uname', '-r')).strip()
         print(uname_r)
         m = UNAME_R_PATTERN.match(uname_r)
         if not m:
-            raise Exception("Bad version format: %s" % uname_r)
+            raise Exception(f"Bad version format: {uname_r}")
         currentVersion = m.groupdict()['version']
-        print("\n## Current kernel version: %s\n" % currentVersion)
+        print(f"\n## Current kernel version: {currentVersion}\n")
         try:
             currentVersionIndex = kernels.index(currentVersion)
         except ValueError as e:
@@ -77,8 +77,8 @@ def main() -> None:
             return
         kernelsToRemove = kernels[:currentVersionIndex]
         assert kernelsToRemove
-        print("## Going to remove kernels: %s; please provide root password to proceed:\n" % ', '.join(kernelsToRemove))
-        runProcess(('sudo', 'apt-get', 'purge') + tuple(('linux-*-%s*' % kernelVersion) for kernelVersion in kernelsToRemove), lineFilter = purgeFilter)
+        print(f"## Going to remove kernels: {', '.join(kernelsToRemove)}; please provide root password to proceed:\n")
+        runProcess(('sudo', 'apt-get', 'purge') + tuple(f'linux-*-{kernelVersion}*' for kernelVersion in kernelsToRemove), lineFilter = purgeFilter)
         print("\n## Making sure the boot loader is up to date\n")
         runProcess(('sudo', 'update-grub2'))
         if currentVersionIndex == len(kernels) - 1:
@@ -86,7 +86,7 @@ def main() -> None:
             return
         print("\nThe currently loaded kernel is NOT the latest, please rerun this script after reboot.\n")
     except Exception as e:
-        print("ERROR! %s" % e)
+        print(f"ERROR! {e}")
         sysExit(1)
 
 if __name__ == '__main__':
