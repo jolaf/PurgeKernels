@@ -26,7 +26,7 @@ def purgeFilter(line: str) -> Optional[str]:
 
 def runProcess(args: Iterable[str], lineFilter: Optional[Callable[[str], Optional[str]]] = None) -> str:
     print('$', ' '.join(args))
-    subProcess = Popen(args, stdout = PIPE, stderr = STDOUT, bufsize = -1)
+    subProcess = Popen(args, stdout = PIPE, stderr = STDOUT, bufsize = -1) # type: ignore[call-overload]
     if lineFilter:
         output = []
         for line in subProcess.stdout:
@@ -35,25 +35,25 @@ def runProcess(args: Iterable[str], lineFilter: Optional[Callable[[str], Optiona
                 continue
             output.append(line)
             print(line, end = '', flush = True)
-        output = ''.join(output + ['',])
+        ret = ''.join(output + ['',])
         (out, err) = subProcess.communicate()
         assert not out, "Unexpected output: %r" % out.decode()
     else:
         (out, err) = subProcess.communicate()
-        output = out.decode()
+        ret = out.decode()
     assert err is None, "Unexpected error output: %r" % err.decode()
     if subProcess.returncode:
         raise Exception("Unexpected return code %s" % subProcess.returncode)
-    return output or ''
+    return ret
 
 def main() -> None:
     try:
         print("\n## Checking installed kernels...\n")
-        kernels = []
+        kernelList: List[str] = []
         for match in KERNEL_PATTERN.finditer(runProcess(('dpkg', '--list'))):
             print(match.groupdict()['line'])
-            kernels.append(match.groupdict()['version'])
-        kernels = tuple(sorted(set(kernels), key = versionTuple))
+            kernelList.append(match.groupdict()['version'])
+        kernels = tuple(sorted(set(kernelList), key = versionTuple)) # type: ignore[arg-type]
         if not kernels:
             raise Exception("No installed kernels found!")
         print("\n## Installed kernels: %s\n" % ', '.join(kernels))
@@ -66,12 +66,12 @@ def main() -> None:
         print("\n## Current kernel version: %s\n" % currentVersion)
         try:
             currentVersionIndex = kernels.index(currentVersion)
-        except ValueError :
-            raise Exception("Current kernel seems to be not installed!")
+        except ValueError as e:
+            raise Exception("Current kernel seems to be not installed!") from None
         if len(kernels) == 1:
             print("The currently loaded kernel is the ONLY kernel installed, there's nothing to be done.\n")
             return
-        if currentVersionIndex == 0:
+        if currentVersionIndex == 0: # pylint: disable=compare-to-zero
             print("The currently loaded kernel is the OLDEST, please rerun this script after reboot.\n")
             return
         kernelsToRemove = kernels[:currentVersionIndex]
