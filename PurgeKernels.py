@@ -2,6 +2,7 @@
 from re import compile as reCompile
 from subprocess import Popen, PIPE, STDOUT
 from sys import exit as sysExit
+from typing import Callable, Iterable, List, Optional, Sequence
 
 VERSION_SPLIT_PATTERN = reCompile(r'[.-]')
 
@@ -13,17 +14,17 @@ UNAME_R_PATTERN = reCompile(VERSION_PATTERN_STR)
 
 PURGE_EXCLUDE_PATTERN = reCompile(r'Note, selecting|is not installed, so not removed')
 
-def versionTuple(version):
+def versionTuple(version: str) -> Sequence[int]:
     return tuple(int(v) for v in VERSION_SPLIT_PATTERN.split(version))
 
-def purgeFilter(line):
+def purgeFilter(line: str) -> Optional[str]:
     if PURGE_EXCLUDE_PATTERN.search(line):
         return None
     if line.endswith(' disk space will be freed.\n'):
         return line + 'Do you want to continue? [Y/n] ' # Add the question that gets suppressed by subprocess buffering
     return line
 
-def runProcess(args, lineFilter = None):
+def runProcess(args: Iterable[str], lineFilter: Optional[Callable[[str], Optional[str]]] = None) -> str:
     print('$', ' '.join(args))
     subProcess = Popen(args, stdout = PIPE, stderr = STDOUT, bufsize = -1)
     if lineFilter:
@@ -45,7 +46,7 @@ def runProcess(args, lineFilter = None):
         raise Exception("Unexpected return code %s" % subProcess.returncode)
     return output or ''
 
-def main():
+def main() -> None:
     try:
         print("\n## Checking installed kernels...\n")
         kernels = []
