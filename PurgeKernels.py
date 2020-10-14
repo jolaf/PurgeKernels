@@ -2,7 +2,7 @@
 from re import compile as reCompile
 from subprocess import Popen, PIPE, STDOUT
 from sys import exit as sysExit
-from typing import Callable, Iterable, List, Optional, Sequence
+from typing import Callable, List, Optional, Sequence, Tuple
 
 VERSION_SPLIT_PATTERN = reCompile(r'[.-]')
 
@@ -14,7 +14,7 @@ UNAME_R_PATTERN = reCompile(VERSION_PATTERN_STR)
 
 PURGE_EXCLUDE_PATTERN = reCompile(r'Note, selecting|is not installed, so not removed')
 
-def versionTuple(version: str) -> Sequence[int]:
+def versionTuple(version: str) -> Tuple[int, ...]:
     return tuple(int(v) for v in VERSION_SPLIT_PATTERN.split(version))
 
 def purgeFilter(line: str) -> Optional[str]:
@@ -24,13 +24,14 @@ def purgeFilter(line: str) -> Optional[str]:
         return line + 'Do you want to continue? [Y/n] ' # Add the question that gets suppressed by subprocess buffering
     return line
 
-def runProcess(args: Iterable[str], lineFilter: Optional[Callable[[str], Optional[str]]] = None) -> str:
+def runProcess(args: Sequence[str], lineFilter: Optional[Callable[[str], Optional[str]]] = None) -> str:
     print('$', ' '.join(args))
-    subProcess = Popen(args, stdout = PIPE, stderr = STDOUT, bufsize = -1) # type: ignore[call-overload]
+    subProcess = Popen(args, stdout = PIPE, stderr = STDOUT, bufsize = 0)
     if lineFilter:
         output = []
-        for line in subProcess.stdout:
-            line = lineFilter(line.decode())
+        assert subProcess.stdout is not None
+        for byteLine in subProcess.stdout:
+            line = lineFilter(byteLine.decode())
             if line is None:
                 continue
             output.append(line)
@@ -41,7 +42,7 @@ def runProcess(args: Iterable[str], lineFilter: Optional[Callable[[str], Optiona
     else:
         (out, err) = subProcess.communicate()
         ret = out.decode()
-    assert err is None, "Unexpected error output: %r" % err.decode()
+    assert not err, "Unexpected error output: %r" % err.decode()
     if subProcess.returncode:
         raise Exception("Unexpected return code %s" % subProcess.returncode)
     return ret
@@ -53,7 +54,7 @@ def main() -> None:
         for match in KERNEL_PATTERN.finditer(runProcess(('dpkg', '--list'))):
             print(match.groupdict()['line'])
             kernelList.append(match.groupdict()['version'])
-        kernels = tuple(sorted(set(kernelList), key = versionTuple)) # type: ignore[arg-type]
+        kernels = tuple(sorted(set(kernelList), key = versionTuple))
         if not kernels:
             raise Exception("No installed kernels found!")
         print("\n## Installed kernels: %s\n" % ', '.join(kernels))
