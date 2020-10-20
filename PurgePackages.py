@@ -53,7 +53,7 @@ def main() -> None:
         if not packages:
             print("No local installed packages found!")
             return
-        print("\n## Checking dependencies:\n")
+        print("\n## Checking reverse dependencies:\n")
         dependencies: Dict[str, List[str]] = {}
         for package in packages:
             m = PURGE_PACKAGE_PATTERN.match(runProcess(('apt-get', '-s', 'remove', package)))
@@ -62,23 +62,23 @@ def main() -> None:
                 continue
             packagesToPurge = PACKAGE_PATTERN.findall(m.groupdict()['packages'])
             packagesToPurge.remove(package)
-            packagesToPurge.sort()
-            print(f"{package}: {' '.join(packagesToPurge) or '-'}")
+            if packagesToPurge:
+                packagesToPurge.sort()
+                print(f"{package}: {' '.join(packagesToPurge)}")
             dependencies[package] = packagesToPurge
         changed = True
         while changed:
             changed = False
             for (package, d) in dependencies.items():
-                if d:
-                    for p in d[:]:
-                        if not dependencies[p]:
-                            d.remove(p)
-                            changed = True
-        print(f"\n## Can NOT be purged: {' '.join(p for (p, d) in dependencies.items() if d) or 'None'}")
+                for p in d[:]:
+                    if dependencies.get(p) == []:
+                        d.remove(p)
+                        changed = True
+        print("\n## Can NOT be purged:", ', '.join(f'{p} ({", ".join(d)})' for (p, d) in dependencies.items() if d) or 'None')
         toPurge = tuple(p for (p, d) in dependencies.items() if not d)
         print(f"\n## Can be purged: {' '.join(toPurge) or 'None'}")
         if toPurge:
-            runProcess(('sudo', 'apt-get', 'purge') + toPurge, lineFilter = purgeFilter)
+            runProcess(('sudo', 'apt-get', 'remove') + toPurge, lineFilter = purgeFilter)
     except Exception as e:
         print(f"ERROR! {e}")
         sysExit(1)

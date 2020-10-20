@@ -14,13 +14,15 @@ UNAME_R_PATTERN = reCompile(VERSION_PATTERN_STR)
 
 PURGE_EXCLUDE_PATTERN = reCompile(r'Note, selecting|is not installed, so not removed')
 
+PURGE_FILTER_PATTERN = reCompile(r'.* disk space will be (?:freed|used).\n$')
+
 def versionTuple(version: str) -> Tuple[int, ...]:
     return tuple(int(v) for v in VERSION_SPLIT_PATTERN.split(version))
 
 def purgeFilter(line: str) -> Optional[str]:
     if PURGE_EXCLUDE_PATTERN.search(line):
         return None
-    if line.endswith(' disk space will be freed.\n'):
+    if PURGE_FILTER_PATTERN.match(line):
         return line + 'Do you want to continue? [Y/n] ' # Add the question that gets suppressed by subprocess buffering
     return line
 
