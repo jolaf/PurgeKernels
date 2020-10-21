@@ -44,7 +44,7 @@ def main() -> None:
     try:
         print("\n## Checking [installed,local] packages...\n")
         packages: List[str] = []
-        for match in LIST_PACKAGE_PATTERN.finditer(runProcess(('apt', 'list', '--installed'))):
+        for match in LIST_PACKAGE_PATTERN.finditer(runProcess(('sudo', 'apt', 'list', '--installed'))):
             package = match.groupdict()['package']
             assert package
             print(package)
