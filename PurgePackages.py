@@ -107,6 +107,12 @@ def main() -> None:
             raise Exception(f"Verification failed: missing: {' '.join(sorted(set(toPurge) - set(verified))) or 'None'}, extra: {' '.join(sorted(set(verified) - set(toPurge))) or None}")
         print("\n## Verified, proceeding with remove:\n")
         runProcess(('sudo', 'apt-get', 'remove') + toPurge, lineFilter = purgeFilter)
+        print("\n## Trying to-reinstall removed packages:\n")
+        for package in toPurge:
+            try:
+                print(runProcess(('sudo', 'apt-get', 'install', package)))
+            except Exception:
+                pass
     except Exception as e:
         print(f"ERROR! {e}")
         sysExit(1)
