@@ -1,4 +1,5 @@
 #!/usr/bin/python3
+from itertools import chain
 from re import compile as reCompile
 from subprocess import Popen, PIPE, STDOUT
 from sys import exit as sysExit
@@ -42,7 +43,7 @@ def runProcess(args: Sequence[str], lineFilter: Optional[Callable[[str], Optiona
 
 def main() -> None:
     try:
-        print("\n## Checking [installed,local] packages...\n")
+        print("\n## Checking [installed,local] packages:\n")
         packages: List[str] = []
         for match in LIST_PACKAGE_PATTERN.finditer(runProcess(('sudo', 'apt', 'list', '--installed'))):
             package = match.groupdict()['package']
@@ -51,34 +52,48 @@ def main() -> None:
             packages.append(package)
         packages.sort()
         if not packages:
-            print("No local installed packages found!")
+            print("No local installed packages found")
             return
         print("\n## Checking reverse dependencies:\n")
         dependencies: Dict[str, List[str]] = {}
         for package in packages:
-            m = PURGE_PACKAGE_PATTERN.match(runProcess(('apt-get', '-s', 'remove', package)))
+            m = PURGE_PACKAGE_PATTERN.match(runProcess(('sudo', 'apt-get', '-s', 'remove', package)))
             if not m:
-                print(f"{package}: Error retrieving dependencies")
-                continue
+                raise Exception(f"{package}: Error retrieving dependencies")
             packagesToPurge = PACKAGE_PATTERN.findall(m.groupdict()['packages'])
             packagesToPurge.remove(package)
             if packagesToPurge:
                 packagesToPurge.sort()
                 print(f"{package}: {' '.join(packagesToPurge)}")
             dependencies[package] = packagesToPurge
-        changed = True
-        while changed:
-            changed = False
-            for (package, d) in dependencies.items():
-                for p in d[:]:
-                    if dependencies.get(p) == []:
-                        d.remove(p)
-                        changed = True
-        print("\n## Can NOT be purged:", ', '.join(f'{p} ({", ".join(d)})' for (p, d) in dependencies.items() if d) or 'None')
-        toPurge = tuple(p for (p, d) in dependencies.items() if not d)
-        print(f"\n## Can be purged: {' '.join(toPurge) or 'None'}")
-        if toPurge:
-            runProcess(('sudo', 'apt-get', 'remove') + toPurge, lineFilter = purgeFilter)
+        # Resolve dependencies
+        externals = set(chain.from_iterable(dependencies.values())) - set(packages) # External dependencies, not present in the dictionary
+        blockers = externals
+        if externals:
+            print(f"\n## The following external dependencies detected: {' '.join(externals)}")
+            while True:
+                add = set(p for (p, d) in dependencies.items() if p not in blockers and set(d) & blockers) # Packages that are not blockers but depend on blockers
+                if not add:
+                    break # All blockers identified
+                blockers |= add
+            for p in dependencies:
+                dependencies[p] = sorted(set(dependencies[p]) & blockers)
+            print(f"\n## The following packages depend on external dependencies: {' '.join(sorted(blockers - externals))}")
+        else:
+            print("\n## No external dependencies found")
+        toPurge = tuple(sorted(set(packages) - blockers))
+        if not toPurge:
+            print("Nothing to remove")
+            return
+        print("\n## Verifying possible remove:\n")
+        m = PURGE_PACKAGE_PATTERN.match(runProcess(('sudo', 'apt-get', '-s', 'remove') + toPurge))
+        if not m:
+            raise Exception(f"{package}: Error verifying remove")
+        verified = tuple(sorted(PACKAGE_PATTERN.findall(m.groupdict()['packages'])))
+        if verified != toPurge:
+            raise Exception(f"Verification failed: missing: {' '.join(sorted(set(toPurge) - set(verified))) or 'None'}, extra: {' '.join(sorted(set(verified) - set(toPurge))) or None}")
+        print("\n## Verified, proceeding to remove:\n")
+        runProcess(('sudo', 'apt-get', 'remove') + toPurge, lineFilter = purgeFilter)
     except Exception as e:
         print(f"ERROR! {e}")
         sysExit(1)
