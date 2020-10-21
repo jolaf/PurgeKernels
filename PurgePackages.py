@@ -54,7 +54,20 @@ def main() -> None:
         if not packages:
             print("No local installed packages found")
             return
-        print("\n## Checking reverse dependencies:\n")
+        print("\n## Trying to-reinstall:\n")
+        reinstalled: List[str] = []
+        for package in packages:
+            try:
+                out = runProcess(('sudo', 'apt-get', 'install', '--reinstall', package))
+                print(out)
+                if 'is not possible, it cannot be downloaded' not in out:
+                    reinstalled.append(package)
+            except Exception:
+                pass
+        if reinstalled:
+            print(f"\n## The following packages were re-installed: {' '.join(reinstalled)}\nPlease re-run the script.\n")
+            return
+        print("## No packages could be re-installed, checking reverse dependencies:\n")
         dependencies: Dict[str, List[str]] = {}
         for package in packages:
             m = PURGE_PACKAGE_PATTERN.match(runProcess(('sudo', 'apt-get', '-s', 'remove', package)))
@@ -92,7 +105,7 @@ def main() -> None:
         verified = tuple(sorted(PACKAGE_PATTERN.findall(m.groupdict()['packages'])))
         if verified != toPurge:
             raise Exception(f"Verification failed: missing: {' '.join(sorted(set(toPurge) - set(verified))) or 'None'}, extra: {' '.join(sorted(set(verified) - set(toPurge))) or None}")
-        print("\n## Verified, proceeding to remove:\n")
+        print("\n## Verified, proceeding with remove:\n")
         runProcess(('sudo', 'apt-get', 'remove') + toPurge, lineFilter = purgeFilter)
     except Exception as e:
         print(f"ERROR! {e}")
