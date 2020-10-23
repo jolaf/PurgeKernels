@@ -18,26 +18,29 @@ def purgeFilter(line: str) -> Optional[str]:
         return line + 'Do you want to continue? [Y/n] ' # Add the question that gets suppressed by subprocess buffering
     return line
 
-def runProcess(args: Sequence[str], lineFilter: Optional[Callable[[str], Optional[str]]] = None) -> str:
+def runProcess(args: Sequence[str], lineFilter: Optional[Callable[[str], Optional[str]]] = None, printOut: bool = True, expectedReturnCode: Optional[int] = 0) -> str:
     print('$', ' '.join(args))
     subProcess = Popen(args, stdout = PIPE, stderr = STDOUT, bufsize = 0)
     if lineFilter:
-        output = []
+        output: List[str] = []
         assert subProcess.stdout is not None
         for byteLine in subProcess.stdout:
             line = lineFilter(byteLine.decode())
             if line is None:
                 continue
             output.append(line)
-            print(line, end = '', flush = True)
+            if printOut:
+                print(line, end = '', flush = True)
         ret = ''.join(output + ['',])
         (out, err) = subProcess.communicate()
         assert not out, f"Unexpected output: {out.decode()!r}"
     else:
         (out, err) = subProcess.communicate()
+        if printOut:
+            print(out.decode())
         ret = out.decode()
     assert not err, f"Unexpected error output: {err.decode()!r}"
-    if subProcess.returncode:
+    if expectedReturnCode is not None and subProcess.returncode != expectedReturnCode:
         raise Exception(f"Unexpected return code {subProcess.returncode}")
     return ret
 
@@ -45,7 +48,7 @@ def main() -> None:
     try:
         print("\n## Checking [installed,local] packages:\n")
         packages: List[str] = []
-        for match in LIST_PACKAGE_PATTERN.finditer(runProcess(('sudo', 'apt', 'list', '--installed'))):
+        for match in LIST_PACKAGE_PATTERN.finditer(runProcess(('sudo', 'apt', 'list', '--installed'), printOut = False)):
             package = match.groupdict()['package']
             assert package
             print(package)
@@ -59,7 +62,6 @@ def main() -> None:
         for package in packages:
             try:
                 out = runProcess(('sudo', 'apt-get', 'install', '--reinstall', package))
-                print(out)
                 if 'is not possible, it cannot be downloaded' not in out:
                     reinstalled.append(package)
             except Exception:
@@ -70,7 +72,7 @@ def main() -> None:
         print("## No packages could be re-installed, checking reverse dependencies:\n")
         dependencies: Dict[str, List[str]] = {}
         for package in packages:
-            m = PURGE_PACKAGE_PATTERN.match(runProcess(('sudo', 'apt-get', '-s', 'remove', package)))
+            m = PURGE_PACKAGE_PATTERN.match(runProcess(('sudo', 'apt-get', '-s', 'remove', package), printOut = False))
             if not m:
                 raise Exception(f"{package}: Error retrieving dependencies")
             packagesToPurge = PACKAGE_PATTERN.findall(m.groupdict()['packages'])
@@ -99,7 +101,7 @@ def main() -> None:
             print("Nothing to remove")
             return
         print("\n## Verifying possible remove:\n")
-        m = PURGE_PACKAGE_PATTERN.match(runProcess(('sudo', 'apt-get', '-s', 'remove') + toPurge))
+        m = PURGE_PACKAGE_PATTERN.match(runProcess(('sudo', 'apt-get', '-s', 'remove') + toPurge, printOut = False))
         if not m:
             raise Exception(f"{package}: Error verifying remove")
         verified = tuple(sorted(PACKAGE_PATTERN.findall(m.groupdict()['packages'])))
