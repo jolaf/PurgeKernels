@@ -76,7 +76,10 @@ def main() -> None:
             if not m:
                 raise Exception(f"{package}: Error retrieving dependencies")
             packagesToPurge = PACKAGE_PATTERN.findall(m.groupdict()['packages'])
-            packagesToPurge.remove(package)
+            try:
+                packagesToPurge.remove(package)
+            except ValueError:
+                pass
             if packagesToPurge:
                 packagesToPurge.sort()
                 print(f"{package}: {' '.join(packagesToPurge)}")
