@@ -69,6 +69,9 @@ def main() -> None:
             currentVersionIndex = kernels.index(currentVersion)
         except ValueError:
             raise Exception(f"Current kernel {currentVersion} seems to be not installed!") from None  # noqa: TRY002
+        if len(kernels) == 2:
+            print("There's only TWO kernels installed, there's nothing to be done.\n")
+            return
         if len(kernels) == 1:
             print("The currently loaded kernel is the ONLY kernel installed, there's nothing to be done.\n")
             return
