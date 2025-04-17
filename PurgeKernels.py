@@ -78,7 +78,7 @@ def main() -> None:
         if currentVersionIndex == 0:  # pylint: disable=compare-to-zero
             print("The currently loaded kernel is the OLDEST, please rerun this script after reboot.\n")
             return
-        kernelsToRemove = kernels[:currentVersionIndex]
+        kernelsToRemove = kernels[:currentVersionIndex - 1]
         assert kernelsToRemove
         print(f"## Going to remove kernels: {', '.join(kernelsToRemove)}; please provide root password to proceed:\n")
         runProcess(('sudo', 'apt-get', 'purge', *(f'linux-*-{kernelVersion}*' for kernelVersion in kernelsToRemove)), lineFilter = purgeFilter)
