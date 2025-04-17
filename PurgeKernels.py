@@ -32,7 +32,7 @@ def runProcess(args: Sequence[str], lineFilter: Callable[[str], str | None] | No
     with Popen(args, stdout = PIPE, stderr = STDOUT, bufsize = 0) as subProcess:  # noqa: S603
         if lineFilter:
             output = []
-            assert subProcess.stdout is not None
+            assert subProcess.stdout is not None, "stdout is None"
             for byteLine in subProcess.stdout:
                 if (line := lineFilter(byteLine.decode())) is None:
                     continue
@@ -69,25 +69,25 @@ def main() -> None:
             currentVersionIndex = kernels.index(currentVersion)
         except ValueError:
             raise Exception(f"Current kernel {currentVersion} seems to be not installed!") from None  # noqa: TRY002
-        if len(kernels) == 2:
-            print("There's only TWO kernels installed, there's nothing to be done.\n")
-            return
         if len(kernels) == 1:
             print("The currently loaded kernel is the ONLY kernel installed, there's nothing to be done.\n")
             return
         if currentVersionIndex == 0:  # pylint: disable=compare-to-zero
             print("The currently loaded kernel is the OLDEST, please rerun this script after reboot.\n")
             return
-        kernelsToRemove = kernels[:currentVersionIndex - 1]
-        assert kernelsToRemove
-        print(f"## Going to remove kernels: {', '.join(kernelsToRemove)}; please provide root password to proceed:\n")
-        runProcess(('sudo', 'apt-get', 'purge', *(f'linux-*-{kernelVersion}*' for kernelVersion in kernelsToRemove)), lineFilter = purgeFilter)
-        print("\n## Making sure the boot loader is up to date\n")
-        runProcess(('sudo', 'update-grub2'))
+        print(f"## Keeping older kernel {kernels[currentVersionIndex - 1]} for reliability.\n")
+        if currentVersionIndex > 1:
+            kernelsToRemove = kernels[:currentVersionIndex - 1]
+            assert kernelsToRemove, "No kernels to remove"
+            print(f"## Going to remove kernels: {', '.join(kernelsToRemove)}; please provide root password to proceed:\n")
+            runProcess(('sudo', 'apt-get', 'purge', *(f'linux-*-{kernelVersion}*' for kernelVersion in kernelsToRemove)), lineFilter = purgeFilter)
+            print("\n## Making sure the boot loader is up to date\n")
+            runProcess(('sudo', 'update-grub2'))
+            print()
         if currentVersionIndex == len(kernels) - 1:
-            print("\nThe currently loaded kernel is the LATEST, nothing else has to be done, though reboot is suggested to make sure the system boots normally.\n")
+            print("The currently loaded kernel is the LATEST, nothing else has to be done, though reboot is suggested to make sure the system boots normally.\n")
             return
-        print("\nThe currently loaded kernel is NOT the latest, please rerun this script after reboot.\n")
+        print("The currently loaded kernel is NOT the latest, please rerun this script after reboot.\n")
     except Exception as e:  # noqa: BLE001
         print(f"ERROR! {e}")
         sysExit(1)
